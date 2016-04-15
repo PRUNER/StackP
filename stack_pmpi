@@ -1,0 +1,151 @@
+#!/bin/env python
+
+import sys, os
+
+def is_mpi_function(func_name):
+    return func_name.startswith("MPI_") 
+
+def is_pmpi_function(func_name):
+    return func_name.startswith("PMPI_") 
+
+def mpi_symbol_list(option, labels, is_mpi, file):
+    outputs = os.popen("nm " + option + " " + file).read().split("\n")
+    defined_symbols = {}
+    for line in outputs:
+        vals = line.split(" ")
+        if len(vals) < 3: continue
+        count = labels.count(vals[-2])
+        if count == 0: continue
+        if is_mpi:
+            if not is_mpi_function(vals[-1]): continue
+            defined_symbols[vals[-1]] = None
+        else: #is_pmpi
+            if not is_pmpi_function(vals[-1]): continue
+            defined_symbols[vals[-1][1:]] = None
+    
+    return defined_symbols
+
+def defined_mpi_symbol_list(file):
+    lst = mpi_symbol_list("--defined-only", "TD", True, file)
+    return lst
+
+def undefined_pmpi_symbol_list(file):
+    lst =  mpi_symbol_list("--undefined-only", "U", False, file)
+    return lst
+
+USAGE = "ws <output.o> <cut{0|1}> <wraper1> <wraper2> ... "    
+
+if len(sys.argv) < 4:
+    print USAGE
+
+output_obj = sys.argv[1]
+try:
+    cut_stack_id = int(sys.argv[2])
+    if cut_stack_id > 1:
+        print USAGE
+        exit(1)
+except ValueError:
+    print USAGE
+    exit(1)
+wrap_files = sys.argv[3:]
+
+symbol_stack = []
+first_file=wrap_files[0]
+module_id="_" + first_file.strip("./").split(".")[-2] + "_"
+#print wrap_files, first_file, module_id
+for wrap_file in wrap_files:
+    symbol_stack.append(
+        (wrap_file, 
+         defined_mpi_symbol_list(wrap_file),
+         undefined_pmpi_symbol_list(wrap_file)
+         )
+        )
+
+
+#print symbol_stack
+for stack_id in range(len(symbol_stack)):
+    symbol_table = symbol_stack[stack_id]
+    undefined_symbols = symbol_table[2]
+    for undefined_symbol in undefined_symbols:
+        for target_stack_id in range(stack_id + 1, len(symbol_stack)):
+            lower_defined_symbols = symbol_stack[target_stack_id][1]
+            if lower_defined_symbols.has_key(undefined_symbol):
+                undefined_symbols[undefined_symbol] = target_stack_id
+                lower_defined_symbols[undefined_symbol] = target_stack_id
+                break
+#            print stack_id, target_stack_id, undefined_symbol, undefined_symbols, lower_defined_symbols
+#        print stack_id, target_stack_id, symbol_stack
+
+for stack_id in range(len(symbol_stack)):
+    symbol_table = symbol_stack[stack_id]
+    defined_symbols = symbol_table[1]
+    for defined_symbol in defined_symbols:
+        for target_stack_id in range(stack_id + 1, len(symbol_stack)):
+            lower_defined_symbols = symbol_stack[target_stack_id][1]
+#            print lower_defined_symbols, defined_symbol
+            if lower_defined_symbols.has_key(defined_symbol):
+                if lower_defined_symbols[defined_symbol] == None:
+                    lower_defined_symbols[defined_symbol] = -1
+#                    print symbol_stack[target_stack_id][0], defined_symbol
+
+
+#create tmp files
+tmpobj_files = ""
+pid = str(os.getpid());
+for symbol_table in symbol_stack:
+    stack_name        = symbol_table[0]
+    tmpobj_file       = stack_name + "." + pid + ".wstmp"
+    tmpobj_files      = tmpobj_files + " "  + tmpobj_file
+    os.popen("cp -f ./" + stack_name + " ./" + tmpobj_file)    
+
+#print "======"
+#for vs in symbol_stack:
+#    for v in vs:
+#        print v
+
+#print symbol_stack
+
+target_stack_id = 1
+
+for symbol_table in symbol_stack[cut_stack_id:]:
+    stack_name        = symbol_table[0]
+    objcopy_file      = stack_name + ".objcopy"
+    tmpobj_file       = stack_name + "." + pid + ".wstmp"
+    defined_symbols   = symbol_table[1]
+    undefined_symbols = symbol_table[2]
+    fd = open(objcopy_file, "w");
+
+    for defined_symbol, defined_stack_id in defined_symbols.items():
+        if defined_stack_id != None:
+            old = defined_symbol
+            new = ""
+            if defined_stack_id == -1:
+                new = "UNUSED_WRAPPER_" + str(target_stack_id) + module_id + old
+            else:
+                new = "P" + str(defined_stack_id) +  module_id + old
+            val = old + " " + new + "\n"
+
+            fd.write(val)
+
+
+
+    for undefined_symbol, undefined_stack_id in undefined_symbols.items():
+        if undefined_stack_id != None:
+            old = "P" + undefined_symbol
+            new = "P" + str(undefined_stack_id) +  module_id + undefined_symbol
+            val = old + " " + new + "\n"
+            fd.write(val)
+
+    fd.close()    
+
+    os.popen("objcopy --redefine-syms=" + objcopy_file + " ./" + tmpobj_file)    
+    os.popen("rm -f " + objcopy_file)    
+    target_stack_id += 1
+
+os.popen("ld -o " + output_obj + " -r " + tmpobj_files)
+os.popen("rm -f " + tmpobj_files)
+    
+#    print os.popen("nm --undefined-only " + wrap_file).read()
+
+
+
