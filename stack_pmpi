@@ -33,21 +33,13 @@ def undefined_pmpi_symbol_list(file):
     lst =  mpi_symbol_list("--undefined-only", "U", False, file)
     return lst
 
-USAGE = "ws <output.o> <cut{0|1}> <wraper1> <wraper2> ... "    
+USAGE = "ws <output.o> <wraper1> <wraper2> ... "    
 
 if len(sys.argv) < 4:
     print USAGE
 
 output_obj = sys.argv[1]
-try:
-    cut_stack_id = int(sys.argv[2])
-    if cut_stack_id > 1:
-        print USAGE
-        exit(1)
-except ValueError:
-    print USAGE
-    exit(1)
-wrap_files = sys.argv[3:]
+wrap_files = sys.argv[2:]
 
 symbol_stack = []
 first_file=wrap_files[0]
@@ -107,7 +99,7 @@ for symbol_table in symbol_stack:
 
 target_stack_id = 1
 
-for symbol_table in symbol_stack[cut_stack_id:]:
+for symbol_table in symbol_stack:
     stack_name        = symbol_table[0]
     objcopy_file      = stack_name + ".objcopy"
     tmpobj_file       = stack_name + "." + pid + ".wstmp"
