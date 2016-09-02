@@ -88,7 +88,7 @@ for symbol_table in symbol_stack:
     stack_name        = symbol_table[0]
     tmpobj_file       = stack_name + "." + pid + ".wstmp"
     tmpobj_files      = tmpobj_files + " "  + tmpobj_file
-    os.popen("cp -f ./" + stack_name + " ./" + tmpobj_file)    
+    os.popen("cp -f " + stack_name + " ./" + tmpobj_file)    
 
 #print "======"
 #for vs in symbol_stack:
