@@ -7,8 +7,8 @@ by Kento Sato (kento@llnl.gov)
      Python script for stack multiple PMPI wrappers and creating a single PMPI object file.
 
 
-Tutorial
+Example
 -----------------------------
-For a thorough tutorial, look at `examples/Makefile`!
+For a thorough tutorial, look at `examples/Makefile`
 
 
