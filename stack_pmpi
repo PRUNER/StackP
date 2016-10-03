@@ -86,7 +86,7 @@ tmpobj_files = ""
 pid = str(os.getpid());
 for symbol_table in symbol_stack:
     stack_name        = symbol_table[0]
-    tmpobj_file       = stack_name + "." + pid + ".wstmp"
+    tmpobj_file       = os.path.basename(stack_name) + "." + pid + ".wstmp"
     tmpobj_files      = tmpobj_files + " "  + tmpobj_file
     os.popen("cp -f " + stack_name + " ./" + tmpobj_file)    
 
@@ -101,8 +101,8 @@ target_stack_id = 1
 
 for symbol_table in symbol_stack:
     stack_name        = symbol_table[0]
-    objcopy_file      = stack_name + ".objcopy"
-    tmpobj_file       = stack_name + "." + pid + ".wstmp"
+    objcopy_file      = os.path.basename(stack_name) + ".objcopy"
+    tmpobj_file       = os.path.basename(stack_name) + "." + pid + ".wstmp"
     defined_symbols   = symbol_table[1]
     undefined_symbols = symbol_table[2]
     fd = open(objcopy_file, "w");
